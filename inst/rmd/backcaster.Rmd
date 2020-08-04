@@ -1,0 +1,110 @@
+---
+title: "TCSI: Backcast treelists from Landis summary data"
+author: "Henry Rodman"
+date: "August 3, 2020"
+output: html_document
+params:
+  treelist_dir: NULL
+  landis_dir: NULL
+---
+
+This is the Landis backcaster. It takes Landis output (biomass in grams per square meter of species x age bins) and converts back into tph by species and diameter bins.
+
+```{r setup}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(data.table)
+library(dtplyr)
+
+options(repr.plot.width = 7, repr.plot.height = 6, repr.plot.res = 200)
+
+```
+
+
+Download 90 m treelists
+```{r download_trees}
+treelist_dir <- tempfile()
+treelist_sync_cmd <- glue::glue(
+  "aws s3 sync ",
+  "s3://silviaterra-sequoia/bm-tcsi-2020-sierra-boundary/output/trees_90m ",
+  "{treelist_dir}"
+)
+
+system(treelist_sync_cmd)
+list.files(treelist_dir)
+```
+
+Get map_code crosswalk table
+```{r map_code_cw}
+
+map_code_crosswalk <- readr::read_csv(
+  "https://silviaterra-delivery.s3.amazonaws.com/TCSI/mapcode_crosswalk_20200803.csv"
+)
+
+```
+
+
+Read the landis files
+```{r landis_import}
+# these are all of the landis csv files derived from the 90m basemap treelists
+all_landis_files <- list.files(landis_dir, full.names = TRUE)
+
+# save one for testing the matching procedure
+test_landis_file <- sample(all_landis_files, 1)
+
+# use the rest for building lookup table
+training_landis_files <- setdiff(
+  all_landis_files,
+  test_landis_file
+)
+
+landis_raw <- do.call(rbind, lapply(training_landis_files, data.table::fread))
+
+lookup <- process_landis(landis_raw)
+
+# import the other one for evaluating matching
+new_data <- process_landis(
+  data.table::fread(test_landis_file)
+)
+
+```
+
+
+```{r backcast}
+backcasted <- backcast_landis_to_treelists(
+  new_data = new_data,
+  lookup = lookup,
+  n_clusters = 50,
+  treelist_dir = treelist_dir
+)
+
+```
+
+Evaluate matching performance
+```{r eval}
+backcasted$comp_frame %>%
+  filter(attr == "aboveground_biomass_g_per_m2") %>%
+  ggplot(aes(x = original, y = matched)) +
+  geom_point(alpha = 1 / 10) +
+  geom_abline()
+
+backcasted$comp_frame %>%
+  filter(
+    attr != "aboveground_biomass_g_per_m2",
+    !str_detect(attr, "age")
+  ) %>%
+  ggplot(aes(x = original, y = matched)) +
+  geom_point(alpha = 1 / 10) +
+  geom_abline(color = "blue") +
+  facet_wrap(~ attr)
+
+backcasted$comp_frame %>%
+  filter(
+    str_detect(attr, "age")
+  ) %>%
+  ggplot(aes(x = original, y = matched)) +
+  geom_point(alpha = 1 / 10) +
+  geom_abline(color = "blue") +
+  facet_wrap(~ attr)
+```
