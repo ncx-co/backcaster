@@ -32,6 +32,15 @@ knitr::opts_chunk$set(
 ```
 
 ```{css, echo=FALSE}
+pre {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+pre[class] {
+  max-height: 200px;
+}
+
 .scroll-200 {
   max-height: 200px;
   overflow-y: auto;
