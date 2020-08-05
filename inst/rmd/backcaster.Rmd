@@ -2,7 +2,7 @@
 title: "TCSI: Backcast treelists from Landis summary data"
 author: "Henry Rodman"
 date: "August 3, 2020"
-output: html_document
+output: pdf_document
 params:
   treelist_dir: NULL
   landis_dir: NULL
@@ -17,22 +17,7 @@ library(ggplot2)
 library(data.table)
 library(dtplyr)
 
-options(repr.plot.width = 7, repr.plot.height = 6, repr.plot.res = 200)
-
-```
-
-
-Download 90 m treelists
-```{r download_trees}
-treelist_dir <- tempfile()
-treelist_sync_cmd <- glue::glue(
-  "aws s3 sync ",
-  "s3://silviaterra-sequoia/bm-tcsi-2020-sierra-boundary/output/trees_90m ",
-  "{treelist_dir}"
-)
-
-system(treelist_sync_cmd)
-list.files(treelist_dir)
+theme_set(theme_bw())
 ```
 
 Read the landis files
@@ -60,7 +45,7 @@ new_data <- process_landis(
 
 ```
 
-
+Backcast the Landis output into treelists
 ```{r backcast}
 backcasted <- backcast_landis_to_treelists(
   new_data = new_data,
@@ -71,30 +56,105 @@ backcasted <- backcast_landis_to_treelists(
 
 ```
 
-Evaluate matching performance
-```{r eval}
+### Diagnostics
+The `backcasted` object also contains two tables that are useful for generating diagnostics for the accuracy of the matching process. Generally speaking, the pixel matching process will do a better job matching the values of the species and age classes with the largest share of biomass for each pixel.
+
+#### Total biomass
+
+```{r total_biomass_plot, echo = FALSE}
 backcasted$comp_frame %>%
   filter(attr == "aboveground_biomass_g_per_m2") %>%
   ggplot(aes(x = original, y = matched)) +
   geom_point(alpha = 1 / 10) +
-  geom_abline()
+  geom_abline() +
+  labs(
+    title = "total biomass (grams / sq. m)",
+    x = "original estimate",
+    y = "estimate from matched pixel"
+  )
+```
 
+```{r total_biomass_table, echo = FALSE}
+backcasted$comp_stats %>%
+  filter(attr == "aboveground_biomass_g_per_m2") %>%
+  transmute(
+    attribute = attr,
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
+
+```
+
+#### Biomass by species
+
+```{r species_biomass_plot, echo = FALSE}
 backcasted$comp_frame %>%
   filter(
-    attr != "aboveground_biomass_g_per_m2",
-    !str_detect(attr, "age")
+    attr %in% attr(lookup, "spp_vars")
   ) %>%
   ggplot(aes(x = original, y = matched)) +
   geom_point(alpha = 1 / 10) +
   geom_abline(color = "blue") +
-  facet_wrap(~ attr)
+  facet_wrap(~ attr) +
+  labs(
+    title = "species biomass (grams / sq. m)",
+    x = "original estimate",
+    y = "estimate from matched pixel"
+  )
+```
+
+```{r species_biomass_table, echo = FALSE}
+backcasted$comp_stats %>%
+  filter(attr %in% attr(lookup, "spp_vars")) %>%
+  arrange(desc(mean_original)) %>%
+  transmute(
+    species = attr,
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
+
+```
+
+
+#### Biomass by age class
+
+```{r age_biomass_plot, echo = FALSE}
 
 backcasted$comp_frame %>%
   filter(
-    str_detect(attr, "age")
+    attr %in% attr(lookup, "age_vars")
   ) %>%
   ggplot(aes(x = original, y = matched)) +
   geom_point(alpha = 1 / 10) +
   geom_abline(color = "blue") +
-  facet_wrap(~ attr)
+  facet_wrap(~ attr) +
+  labs(
+    title = "age class biomass (grams / sq. m)",
+    x = "original estimate",
+    y = "estimate from matched pixel"
+  )
+```
+
+```{r age_biomass_table, echo = FALSE}
+backcasted$comp_stats %>%
+  filter(attr %in% attr(lookup, "age_vars")) %>%
+  mutate(
+    age_class = as.numeric(gsub("age_", "", attr))
+  ) %>%
+  arrange(age_class) %>%
+  transmute(
+    `age class` = paste(age_class, age_class + 10, sep = " - "),
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
+
 ```
