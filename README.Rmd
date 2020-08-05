@@ -31,23 +31,6 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{css, echo=FALSE}
-pre {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-pre[class] {
-  max-height: 200px;
-}
-
-.scroll-200 {
-  max-height: 200px;
-  overflow-y: auto;
-  background-color: inherit;
-}
-```
-
 # backcaster
 
 The goal of backcaster is to recover treelists with pixel-level tallies of stems by species and diameter class from Landis model data structures (biomass by species and age class).
@@ -66,6 +49,9 @@ The backcasting process can be boiled down to these steps:
 5. For each pixel in `new_data` use k-nearest neighbors process to identify the most similar pixel from set of possibilities in the same cluster in `lookup`.
 
 6. Pull the tree records from the nearest-neighbor match pixels and attribute them to the target pixels in `new_data`
+
+### Strengths
+The backcasting process yields matched pixels that closely resemble the input pixels with respect to total biomass and biomass in the most abundant species/age classes. The process is relatively efficient and yields treelists down to the species/diameter level for each pixel which provides ultimate flexibility for analyzing the results.
 
 ### Limitations
 The set of potential treelists (i.e. combinations of stems per species and diameter per pixel) that can be produced using this process is limited to the set present in the 2019 SilviaTerra Basemap treelist predictions. If the projected Landis biomass tables extends into age classes far beyond what was present in the 2019 tables the backcasting process will not find pixels that match exactly. The resulting treelists should resemble the species composition and structure of the input Landis summaries, but be aware that the range of age classes is limited to those present in the input data.
