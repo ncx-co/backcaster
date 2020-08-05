@@ -1,18 +1,60 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
+<style type="text/css">
+.scroll-200 {
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: inherit;
+}
+</style>
+
 # backcaster
 
 The goal of backcaster is to recover treelists with pixel-level tallies
 of stems by species and diameter class from Landis model data structures
 (biomass by species and age class).
 
-TODO outline basic process
+### Processs
+
+The backcasting process can be boiled down to these steps:
+
+1.  Import pixel-level Landis summary tables derived from the
+    SilviaTerra basemap treelists to create the “lookup” table
+    (`lookup`).
+
+2.  Use kmeans clustering to assign each pixel to one of `n` clusters
+    based on distribution of biomass amongst species.
+
+3.  Import pixel-level Landis summary table for pixels that need to be
+    backcasted into treelist form (`new_data`).
+
+4.  Assign each pixel in `new_data` to one of the clusters identified in
+    step 1.
+
+5.  For each pixel in `new_data` use k-nearest neighbors process to
+    identify the most similar pixel from set of possibilities in the
+    same cluster in `lookup`.
+
+6.  Pull the tree records from the nearest-neighbor match pixels and
+    attribute them to the target pixels in `new_data`
+
+### Limitations
+
+The set of potential treelists (i.e. combinations of stems per species
+and diameter per pixel) that can be produced using this process is
+limited to the set present in the 2019 SilviaTerra Basemap treelist
+predictions. If the projected Landis biomass tables extends into age
+classes far beyond what was present in the 2019 tables the backcasting
+process will not find pixels that match exactly. The resulting treelists
+should resemble the species composition and structure of the input
+Landis summaries, but be aware that the range of age classes is limited
+to those present in the input data.
 
 ## Installation
 
 You can install the current version of backcaster from
-[GitHub](https://github.com/) with:
+[GitHub](https://github.com/SilviaTerra/backcaster) with:
 
 ``` r
 # install.packages("remotes")
@@ -34,14 +76,6 @@ data, obtaining back-casted treelists, and some diagnostics.
 ``` r
 library(backcaster)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 library(ggplot2)
 library(tibble)
 ```
@@ -55,9 +89,6 @@ all_landis_files <- list.files(
   landis_dir,
   full.names = TRUE
 )
-
-glimpse(all_landis_files)
-#>  chr [1:2] "/home/henry/R/x86_64-pc-linux-gnu-library/4.0/backcaster/extdata/landis/10_10.csv.gz" ...
 ```
 
 For this example we will hold one of the Landis summary files out of the
@@ -86,8 +117,9 @@ methods of importing the files that result in a single large
 
 ``` r
 landis_raw <- do.call(rbind, lapply(training_landis_files, data.table::fread))
+```
 
-glimpse(landis_raw)
+``` scroll-200
 #> Rows: 332,177
 #> Columns: 5
 #> $ pix_ctr_wkt                  <chr> "POINT(-1771455 -462015)", "POINT(-17714…
@@ -104,8 +136,9 @@ biomass by age class for each pixel.
 
 ``` r
 lookup <- process_landis(landis_raw)
+```
 
-glimpse(lookup)
+``` scroll-200
 #> Rows: 2,459
 #> Columns: 74
 #> $ map_code                     <chr> "10_10_1", "10_10_10", "10_10_100", "10_…
@@ -193,8 +226,9 @@ imported in one fell swoop:
 new_data <- process_landis(
   data.table::fread(test_landis_file)
 )
+```
 
-glimpse(new_data)
+``` scroll-200
 #> Rows: 2,500
 #> Columns: 74
 #> $ map_code                     <chr> "10_11_1", "10_11_10", "10_11_100", "10_…
@@ -274,7 +308,7 @@ glimpse(new_data)
 ```
 
 The backcasting process can be executed with a call to the function
-`backcast_landis_to_treelists`.
+`backcast_landis_to_treelists`:
 
 ``` r
 backcasted <- backcast_landis_to_treelists(
@@ -289,8 +323,120 @@ backcasted <- backcast_landis_to_treelists(
 #> summarizing original vs matched Landis attributes
 ```
 
-<img src="man/figures/README-total_biomass_diagnostic-1.png" width="100%" />
+The output of that function contains the treelist (`backcasted$trees`)
+and some diagnostic tables (`backcasted$comp_stats`,
+`backcasted$comp_frame`). The treelist object contains one row per
+species (`common`) and diameter per pixel.
 
-<img src="man/figures/README-species_biomass_diagnostic-1.png" width="100%" />
+``` scroll-200
+#> Rows: 595,709
+#> Columns: 6
+#> $ pix_ctr_wkt <chr> "POINT(-1768035 -455625)", "POINT(-1768035 -455625)", "PO…
+#> $ map_code    <chr> "10_11_1889", "10_11_1889", "10_11_1889", "10_11_1889", "…
+#> $ pix_area_ha <dbl> 0.81, 0.81, 0.81, 0.81, 0.81, 0.81, 0.81, 0.81, 0.81, 0.8…
+#> $ common      <chr> "California black oak", "ponderosa pine", "California bla…
+#> $ diameter    <int> 2, 5, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 24, 26, …
+#> $ nTrees      <dbl> 57.891, 5.572, 14.138, 10.092, 11.434, 1.531, 13.562, 10.…
+```
 
-<img src="man/figures/README-age_biomass_diagnostic-1.png" width="100%" />
+### Diagnostics
+
+The `backcasted` object also contains two tables that are useful for
+generating diagnostics for the accuracy of the matching process.
+Generally speaking, the pixel matching process will do a better job
+matching the values of the species and age classes with the largest
+share of biomass for each pixel.
+
+#### Total biomass
+
+<img src="man/figures/README-total_biomass_plot-1.png" width="80%" />
+
+|            attribute             | original mean | matched mean | RMSE  | RMSE % |
+| :------------------------------: | :-----------: | :----------: | :---: | :----: |
+| aboveground\_biomass\_g\_per\_m2 |     2852      |     2817     | 115.8 |   4    |
+
+#### Biomass by species
+
+<img src="man/figures/README-species_biomass_plot-1.png" width="80%" />
+
+|     species     | original mean | matched mean |  RMSE  | RMSE % |
+| :-------------: | :-----------: | :----------: | :----: | :----: |
+|    PseuMenz     |     1138      |     1154     | 97.36  |   9    |
+|    AbieConc     |      524      |    516.7     |  98.6  |   19   |
+|    CaloDecu     |     453.4     |    418.9     |  117   |   26   |
+|    PinuPond     |     362.5     |    369.3     | 91.74  |   25   |
+|    PinuLamb     |     152.8     |    156.8     | 73.84  |   48   |
+|    QuerKell     |     98.18     |    92.55     | 68.59  |   70   |
+|    QuerChry     |     39.03     |    31.67     | 56.45  |  145   |
+|    AcerMacr     |     17.25     |    14.96     | 42.41  |  246   |
+|    QuerWisl     |     8.485     |    7.701     |  27.4  |  323   |
+|    AbieMagn     |     7.563     |     5.31     | 28.57  |  378   |
+|    ArbuMenz     |     7.465     |    6.453     | 27.84  |  373   |
+|    PinuJeff     |     6.857     |    6.646     | 27.45  |  400   |
+|    LithDens     |     6.416     |    7.764     | 29.23  |  456   |
+|    AlnuRhom     |     5.756     |    4.851     | 22.65  |  394   |
+|  NOFX\_R\_SEED  |     5.039     |    4.617     | 7.912  |  157   |
+|    TsugMert     |     4.166     |    4.293     | 24.72  |  593   |
+|    PinuSabi     |     3.656     |    3.319     |  20.1  |  550   |
+|    CornNutt     |     2.504     |    2.248     | 6.248  |  249   |
+|   FX\_R\_SEED   |     1.543     |    1.571     |  3.43  |  222   |
+|    PinuMono     |     1.493     |    0.548     | 18.49  |  1239  |
+|    QuerDoug     |     1.346     |    1.065     | 9.993  |  743   |
+|    JuniOcci     |     1.308     |     1.33     | 12.26  |  937   |
+|    AescCali     |     1.019     |    0.8943    | 6.593  |  647   |
+|    PinuMont     |    0.8548     |    0.6364    | 6.336  |  741   |
+|    PopuTrem     |    0.6074     |    0.8791    | 8.343  |  1374  |
+| NOFX\_NOR\_SEED |    0.3187     |    0.3951    | 2.524  |  792   |
+|    PinuCont     |    0.2669     |    0.206     | 2.204  |  826   |
+|    QuerGarr     |    0.09528    |    0.1569    | 2.026  |  2127  |
+|    TaxuBrev     |    0.07983    |    0.1329    | 1.392  |  1744  |
+|    TorrCali     |    0.06021    |   0.04675    | 0.5542 |  920   |
+|    UmbeCali     |    0.0512     |   0.05752    | 0.9691 |  1893  |
+|    PinuAlbi     |    0.02423    |   0.006637   | 0.6391 |  2637  |
+|    PinuAtte     |    0.00294    |   0.03735    | 0.7897 | 26856  |
+
+#### Biomass by age class
+
+<img src="man/figures/README-age_biomass_plot-1.png" width="80%" />
+
+| age class | original mean | matched mean |   RMSE   | RMSE % |
+| :-------: | :-----------: | :----------: | :------: | :----: |
+| \-10 - 0  |   7.16e-05    |   0.00016    | 0.004836 |  6754  |
+|  0 - 10   |   0.006694    |   0.008042   | 0.09241  |  1381  |
+|  10 - 20  |      3.4      |    3.664     |  4.869   |  143   |
+|  20 - 30  |     3.871     |    4.044     |  7.185   |  186   |
+|  30 - 40  |     11.94     |    12.03     |  8.219   |   69   |
+|  40 - 50  |     46.69     |    47.65     |   17.2   |   37   |
+|  50 - 60  |     82.95     |    80.48     |  23.34   |   28   |
+|  60 - 70  |     136.6     |    131.6     |  37.06   |   27   |
+|  70 - 80  |     156.8     |    154.1     |  38.83   |   25   |
+|  80 - 90  |     164.3     |    157.3     |  47.27   |   29   |
+| 90 - 100  |     174.5     |    172.4     |  42.84   |   25   |
+| 100 - 110 |     182.8     |    174.9     |  49.82   |   27   |
+| 110 - 120 |     179.6     |    183.5     |  53.62   |   30   |
+| 120 - 130 |     202.3     |    209.4     |  67.22   |   33   |
+| 130 - 140 |      185      |     179      |  63.72   |   34   |
+| 140 - 150 |     133.7     |    132.6     |  37.09   |   28   |
+| 150 - 160 |     155.3     |    156.1     |  39.52   |   25   |
+| 160 - 170 |     180.2     |    183.8     |   44.5   |   25   |
+| 170 - 180 |     123.3     |    128.7     |  43.53   |   35   |
+| 180 - 190 |     100.6     |     95.1     |  44.06   |   44   |
+| 190 - 200 |     89.26     |    87.78     |  39.36   |   44   |
+| 200 - 210 |     101.4     |    102.6     |  42.35   |   42   |
+| 210 - 220 |     63.84     |    58.27     |  39.02   |   61   |
+| 220 - 230 |     105.1     |    103.6     |  52.29   |   50   |
+| 230 - 240 |     127.2     |    120.7     |  68.66   |   54   |
+| 240 - 250 |     35.08     |    35.88     |  32.97   |   94   |
+| 250 - 260 |     20.04     |    18.92     |  29.95   |  149   |
+| 260 - 270 |     27.75     |    28.08     |  30.37   |  109   |
+| 270 - 280 |     48.4      |    46.84     |  32.14   |   66   |
+| 280 - 290 |    0.2187     |    0.1254    |  3.502   |  1601  |
+| 290 - 300 |     2.635     |    2.055     |  16.08   |  610   |
+| 300 - 310 |     4.736     |    3.587     |  18.03   |  381   |
+| 310 - 320 |    0.6709     |    0.4459    |  6.229   |  929   |
+| 320 - 330 |     1.141     |    0.9559    |  12.31   |  1079  |
+| 340 - 350 |   0.009248    |   0.005255   | 0.08552  |  925   |
+| 350 - 360 |    0.1074     |   0.04024    |  2.728   |  2541  |
+| 360 - 370 |    0.2148     |    0.1824    |  7.476   |  3480  |
+| 380 - 390 |   0.0003472   |  0.0005916   | 0.02575  |  7415  |
+| 390 - 400 |   0.0003472   |      0       | 0.01228  |  3536  |

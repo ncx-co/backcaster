@@ -27,19 +27,43 @@ knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
   fig.path = "man/figures/README-",
-  out.width = "100%"
+  out.width = "80%"
 )
+```
+
+```{css, echo=FALSE}
+.scroll-200 {
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: inherit;
+}
 ```
 
 # backcaster
 
 The goal of backcaster is to recover treelists with pixel-level tallies of stems by species and diameter class from Landis model data structures (biomass by species and age class).
 
-TODO outline basic process
+### Processs
+The backcasting process can be boiled down to these steps:
+
+1. Import pixel-level Landis summary tables derived from the SilviaTerra basemap treelists to create the "lookup" table (`lookup`).
+
+2. Use kmeans clustering to assign each pixel to one of `n` clusters based on distribution of biomass amongst species.
+
+3. Import pixel-level Landis summary table for pixels that need to be backcasted into treelist form (`new_data`).
+
+4. Assign each pixel in `new_data` to one of the clusters identified in step 1.
+
+5. For each pixel in `new_data` use k-nearest neighbors process to identify the most similar pixel from set of possibilities in the same cluster in `lookup`.
+
+6. Pull the tree records from the nearest-neighbor match pixels and attribute them to the target pixels in `new_data`
+
+### Limitations
+The set of potential treelists (i.e. combinations of stems per species and diameter per pixel) that can be produced using this process is limited to the set present in the 2019 SilviaTerra Basemap treelist predictions. If the projected Landis biomass tables extends into age classes far beyond what was present in the 2019 tables the backcasting process will not find pixels that match exactly. The resulting treelists should resemble the species composition and structure of the input Landis summaries, but be aware that the range of age classes is limited to those present in the input data.
 
 ## Installation
 
-You can install the current version of backcaster from [GitHub](https://github.com/) with:
+You can install the current version of backcaster from [GitHub](https://github.com/SilviaTerra/backcaster) with:
 
 ``` r
 # install.packages("remotes")
@@ -55,7 +79,7 @@ To use backcaster you must have two sets of files stored on your machine:
 The following example walks through the process of importing the raw data, obtaining back-casted treelists, and some diagnostics.
 
 
-```{r libraries}
+```{r libraries, message = FALSE}
 library(backcaster)
 library(dplyr)
 library(ggplot2)
@@ -68,7 +92,9 @@ all_landis_files <- list.files(
   landis_dir,
   full.names = TRUE
 )
+```
 
+```{r landis_look, include = FALSE}
 glimpse(all_landis_files)
 ```
 
@@ -88,16 +114,20 @@ training_landis_files <- setdiff(
 ```
 
 All of the Landis summary files that will be used to construct the lookup table can be read in using `data.table::fread`. Alternative methods of importing the files that result in a single large `data.frame`-like object will also work.
-```{r}
+```{r import_landis_training}
 landis_raw <- do.call(rbind, lapply(training_landis_files, data.table::fread))
+```
 
+```{r raw_landis_look, echo = FALSE, class.output = "scroll-200"}
 glimpse(landis_raw)
 ```
 
 The function `process_landis` is used re-shape the raw Landis data into the format optimized for subsequent operations. This is a very wide dataframe with observations of total biomass, biomass by species, and biomass by age class for each pixel.
-```{r}
+```{r process_landis}
 lookup <- process_landis(landis_raw)
+```
 
+```{r processed_landis_look, echo = FALSE, class.output = "scroll-200"}
 glimpse(lookup)
 ```
 
@@ -106,11 +136,13 @@ Our goal in this example is to generate a treelist for a set of pixels for which
 new_data <- process_landis(
   data.table::fread(test_landis_file)
 )
+```
 
+```{r new_data_look, echo = FALSE, class.output = "scroll-200"}
 glimpse(new_data)
 ```
 
-The backcasting process can be executed with a call to the function `backcast_landis_to_treelists`.
+The backcasting process can be executed with a call to the function `backcast_landis_to_treelists`:
 ```{r backcast}
 backcasted <- backcast_landis_to_treelists(
   new_data = new_data,
@@ -120,8 +152,18 @@ backcasted <- backcast_landis_to_treelists(
 )
 ```
 
+The output of that function contains the treelist (`backcasted$trees`) and some diagnostic tables (`backcasted$comp_stats`, `backcasted$comp_frame`). The treelist object contains one row per species (`common`) and diameter per pixel.
 
-```{r total_biomass_diagnostic, echo = FALSE}
+```{r trees, echo = FALSE, class.output = "scroll-200"}
+glimpse(backcasted$trees)
+```
+
+### Diagnostics
+The `backcasted` object also contains two tables that are useful for generating diagnostics for the accuracy of the matching process. Generally speaking, the pixel matching process will do a better job matching the values of the species and age classes with the largest share of biomass for each pixel.
+
+#### Total biomass
+
+```{r total_biomass_plot, echo = FALSE}
 backcasted$comp_frame %>%
   filter(attr == "aboveground_biomass_g_per_m2") %>%
   ggplot(aes(x = original, y = matched)) +
@@ -134,8 +176,23 @@ backcasted$comp_frame %>%
   )
 ```
 
-```{r species_biomass_diagnostic, echo = FALSE}
+```{r total_biomass_table, echo = FALSE}
+backcasted$comp_stats %>%
+  filter(attr == "aboveground_biomass_g_per_m2") %>%
+  transmute(
+    attribute = attr,
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
 
+```
+
+#### Biomass by species
+
+```{r species_biomass_plot, echo = FALSE}
 backcasted$comp_frame %>%
   filter(
     attr %in% attr(lookup, "spp_vars")
@@ -151,7 +208,25 @@ backcasted$comp_frame %>%
   )
 ```
 
-```{r age_biomass_diagnostic, echo = FALSE}
+```{r species_biomass_table, echo = FALSE, class.output = "scroll-200"}
+backcasted$comp_stats %>%
+  filter(attr %in% attr(lookup, "spp_vars")) %>%
+  arrange(desc(mean_original)) %>%
+  transmute(
+    species = attr,
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
+
+```
+
+
+#### Biomass by age class
+
+```{r age_biomass_plot, echo = FALSE}
 
 backcasted$comp_frame %>%
   filter(
@@ -166,4 +241,22 @@ backcasted$comp_frame %>%
     x = "original estimate",
     y = "estimate from matched pixel"
   )
+```
+
+```{r age_biomass_table, echo = FALSE, class.output = "scroll-200"}
+backcasted$comp_stats %>%
+  filter(attr %in% attr(lookup, "age_vars")) %>%
+  mutate(
+    age_class = as.numeric(gsub("age_", "", attr))
+  ) %>%
+  arrange(age_class) %>%
+  transmute(
+    `age class` = paste(age_class, age_class + 10, sep = " - "),
+    `original mean` = mean_original,
+    `matched mean` = mean_matched,
+    RMSE = rmse,
+    `RMSE %` = rmse_pct
+  ) %>%
+  pander::pander()
+
 ```
