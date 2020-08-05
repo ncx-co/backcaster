@@ -49,6 +49,12 @@ process_landis <- function(data) {
 
   # biomass by age class
   biomass_x_age <- data %>%
+    dplyr::mutate(
+      age_class = dplyr::case_when(
+        .data[["age_class"]] < 0 ~ 0,
+        TRUE ~ .data[["age_class"]]
+      )
+    ) %>%
     dplyr::group_by(
       .data[["map_code"]],
       .data[["age_class"]]
