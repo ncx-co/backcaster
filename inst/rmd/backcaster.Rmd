@@ -35,16 +35,6 @@ system(treelist_sync_cmd)
 list.files(treelist_dir)
 ```
 
-Get map_code crosswalk table
-```{r map_code_cw}
-
-map_code_crosswalk <- readr::read_csv(
-  "https://silviaterra-delivery.s3.amazonaws.com/TCSI/mapcode_crosswalk_20200803.csv"
-)
-
-```
-
-
 Read the landis files
 ```{r landis_import}
 # these are all of the landis csv files derived from the 90m basemap treelists
