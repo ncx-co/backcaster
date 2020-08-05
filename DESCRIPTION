@@ -1,0 +1,36 @@
+Package: backcaster
+Title: Backcast Landis biomass x age class summaries to treelists.
+Version: 1.0
+Authors@R:
+    c(
+        person(
+            given = "Henry",
+            family = "Rodman",
+            role = c("aut", "cre"),
+            email = "henry@silviaterra.com"
+        ),
+        person("SilviaTerra", role = c("cph", "fnd"))
+    )
+Description: What the package does (one paragraph).
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.1.1
+Imports:
+    data.table,
+    dplyr,
+    dtplyr,
+    FNN,
+    ggplot2,
+    magrittr,
+    purrr,
+    rlang,
+    R.utils,
+    tibble,
+    tidyr,
+    tidyselect
+Suggests:
+    ggplot2
+Depends:
+    R (>= 3.5)
