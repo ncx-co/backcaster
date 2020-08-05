@@ -51,8 +51,8 @@ process_landis <- function(data) {
   biomass_x_age <- data %>%
     dplyr::mutate(
       age_class = dplyr::case_when(
-        .data[["age_class"]] < 0 ~ 0,
-        TRUE ~ .data[["age_class"]]
+        .data[["age_class"]] < 0 ~ as.numeric(0),
+        TRUE ~ as.numeric(.data[["age_class"]])
       )
     ) %>%
     dplyr::group_by(
