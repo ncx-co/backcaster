@@ -1,5 +1,5 @@
 Package: backcaster
-Title: What the Package Does (One Line, Title Case)
+Title: Backcast Landis biomass x age class summaries to treelists.
 Version: 1.0
 Authors@R:
     c(
@@ -30,5 +30,7 @@ Imports:
     tibble,
     tidyr,
     tidyselect
+Suggests:
+    ggplot2
 Depends:
     R (>= 3.5)
