@@ -1,15 +1,18 @@
 Package: backcaster
 Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Version: 1.0
 Authors@R:
-    person(given = "First",
-           family = "Last",
-           role = c("aut", "cre"),
-           email = "first.last@example.com",
-           comment = c(ORCID = "YOUR-ORCID-ID"))
+    c(
+        person(
+            given = "Henry",
+            family = "Rodman",
+            role = c("aut", "cre"),
+            email = "henry@silviaterra.com"
+        ),
+        person("SilviaTerra", role = c("cph", "fnd"))
+    )
 Description: What the package does (one paragraph).
-License: `use_mit_license()`, `use_gpl3_license()` or friends to
-    pick a license
+License: GPL-3
 Encoding: UTF-8
 LazyData: true
 Roxygen: list(markdown = TRUE)
@@ -18,7 +21,14 @@ Imports:
     data.table,
     dplyr,
     dtplyr,
+    FNN,
     ggplot2,
     magrittr,
+    purrr,
+    rlang,
+    R.utils,
+    tibble,
     tidyr,
     tidyselect
+Depends:
+    R (>= 3.5)
