@@ -18,6 +18,7 @@ library(data.table)
 library(dtplyr)
 
 theme_set(theme_bw())
+attach(params)
 ```
 
 Read the landis files
