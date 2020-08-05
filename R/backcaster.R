@@ -6,9 +6,12 @@
 #'
 #' @return wide dataframe with one row per pixel, a column with total biomass,
 #' one column per species, and one column per age class
+#' @importFrom rlang .data
 #' @export
 #'
 #' @examples
+#' process_landis(data.table::fread(test_landis_training_file))
+
 process_landis <- function(data) {
   data <- dtplyr::lazy_dt(data)
 
@@ -86,17 +89,25 @@ process_landis <- function(data) {
   return(out)
 }
 
-# Function for clustering and matching
-#' Title
+#' Cluster Landis summary data using kmeans clustering algorithm. See
+#' \code{stats::\link[stats]{kmeans}} for details.
 #'
-#' @param data
-#' @param vars
-#' @param n_clusters
+#' @param data dataframe output of \code{\link{process_landis}}
+#' @param vars character vector of variables to be used for grouping pixels
+#' into clusters
+#' @param n_clusters integer number of clusters
 #'
-#' @return
+#' @return list containing an object of class \code{kmeans} and the scale
+#' parameters of the data passed to the kmeans function.
 #' @export
 #'
 #' @examples
+#' cluster_data(
+#'   data = test_landis,
+#'   vars = attr(test_landis, "spp_vars"),
+#'   n = 30
+#' )
+
 cluster_data <- function(data, vars, n_clusters) {
   # drop vars that have 0 variance
   zero_vars <- purrr::map_lgl(
@@ -127,7 +138,24 @@ cluster_data <- function(data, vars, n_clusters) {
 
 }
 
-# Function for assigning a new data to existing clusters
+#' Assign new data to existing clusters
+#'
+#' @param data dataframe output of \code{\link{process_landis}}
+#' @param data_centers center parameters for scaled data
+#' @param data_scales scale parameters for scaled data
+#' @param cluster_centers matrix of center values for clusters
+#'
+#' @return vector of integer cluster assignments
+#' @export
+#'
+#' @examples
+#' assign_to_cluster(
+#'   data = process_landis(data.table::fread(test_landis_prediction_file)),
+#'   data_centers = test_clusters$data_centers,
+#'   data_scales = test_clusters$data_scales,
+#'   cluster_centers = test_clusters$kmeans$center
+#' )
+
 assign_to_cluster <- function(data, data_centers, data_scales,
                               cluster_centers) {
 
@@ -150,17 +178,30 @@ assign_to_cluster <- function(data, data_centers, data_scales,
   matches$nn.index[, 1] # index == cluster
 }
 
-# function to pull nearest neighbor match
-#' Title
+#' Get nearest neighbor matches for new data from pool of pixels
 #'
-#' @param new_data
-#' @param lookup
-#' @param vars
+#' @param new_data dataframe object that needs nearest neighbor matches, output
+#' of \code{\link{process_landis}}
+#' @param lookup dataframe output of \code{\link{process_landis}} from which
+#' matches will be drawn
+#' @param vars character vector of variables to use for k nearest neighbor
+#' matching
 #'
-#' @return
+#' @return dataframe of map_codes from \code{new_data} and matching map_codes
+#' from \code{lookup}
 #' @export
 #'
 #' @examples
+#' pull_matches(
+#'   new_data = process_landis(data.table::fread(test_landis_prediction_file)),
+#'   lookup = test_landis,
+#'   vars = c(
+#'     "aboveground_biomass_g_per_m2",
+#'     attr(test_landis, "spp_vars"),
+#'     attr(test_landis, "age_vars")
+#'   )
+#' )
+
 pull_matches <- function(new_data, lookup, vars) {
 
   # drop vars that are all 0
@@ -209,17 +250,27 @@ pull_matches <- function(new_data, lookup, vars) {
 
 }
 
-# function to get matching map_codes for new data
-#' Title
+#' Get matching map_codes from lookup data
 #'
-#' @param new_data
-#' @param lookup
-#' @param clusters
+#' @param new_data dataframe object that needs nearest neighbor matches, output
+#' of \code{\link{process_landis}}.
+#' @param lookup dataframe output of \code{\link{process_landis}} from which
+#' matches will be drawn.
+#' @param clusters list output from \code{\link{cluster_data}}.
 #'
-#' @return
+#' @return dataframe of map_codes from \code{new_data} and matching map_codes
+#' from \code{lookup}.
 #' @export
 #'
 #' @examples
+#' # add cluster IDs to test_landis
+#' test_landis$cluster <- test_clusters$kmeans$cluster
+#' get_matching_map_codes(
+#'   new_data = process_landis(data.table::fread(test_landis_prediction_file)),
+#'   lookup = test_landis,
+#'   clusters = test_clusters
+#' )
+
 get_matching_map_codes <- function(new_data, lookup, clusters) {
 
   # match evaluation data to a cluster
@@ -255,17 +306,27 @@ get_matching_map_codes <- function(new_data, lookup, clusters) {
   return(match_frame)
 }
 
-# function to get matching tree records
-#' Title
+#' Get matching tree records
 #'
-#' @param match_frame
-#' @param map_code_crosswalk
-#' @param treelist_dir
+#' @param match_frame dataframe output from
+#' \code{\link{get_matching_map_codes}} with \code{map_code} values for the
+#' target pixels and for the matched records from the lookup dataset.
+#' @param map_code_crosswalk dataframe that relates mapcode pixel identifiers
+#' (\code{map_code}) with pixel coordinates (\code{pix_ctr_wkt}), and map code
+#' index values.
+#' @param treelist_dir file path to directory containing treelist csv files
+#' corresponding to the pool of pixels in the lookup dataset.
 #'
-#' @return
+#' @return dataframe of tree records for the target pixels
 #' @export
 #'
 #' @examples
+#' get_trees(
+#'   match_frame = test_match_frame,
+#'   map_code_crosswalk = map_code_crosswalk,
+#'   treelist_dir = test_landis_treelist_dir
+#' )
+
 get_trees <- function(match_frame, map_code_crosswalk, treelist_dir) {
   file_frame <- match_frame %>%
     tidyr::extract(
@@ -277,7 +338,7 @@ get_trees <- function(match_frame, map_code_crosswalk, treelist_dir) {
     dplyr::mutate(
       treelist_fn = file.path(
         treelist_dir,
-        paste0(.data[["minigrid_group"]], ".csv")
+        paste0(.data[["minigrid_group"]], ".csv.gz")
       ),
       pix_ctr_wkt = map_code_crosswalk$pix_ctr_wkt[
         match(.data[["matched"]], map_code_crosswalk$map_code)
@@ -315,17 +376,32 @@ get_trees <- function(match_frame, map_code_crosswalk, treelist_dir) {
   return(in_trees)
 }
 
-#' Title
+#' Backcast Landis to treelists
 #'
-#' @param new_data
-#' @param lookup
-#' @param n_clusters
-#' @param treelist_dir
+#' @param new_data dataframe object that will get backcasted treelists, output
+#' of \code{\link{process_landis}}
+#' @param lookup dataframe output of \code{\link{process_landis}} from which
+#' matches will be drawn.
+#' @param n_clusters integer number of clusters for grouping the pool of input
+#' pixels in \code{lookup}.
+#' @param treelist_dir file path to directory containing treelist csv files
+#' corresponding to the pool of pixels in the lookup dataset.
 #'
-#' @return
+#' @return list containing backcasted treelists for pixels in \code{new_data},
+#' a dataframe with matching accuracy statistics (\code{comp_stats}), and a
+#' dataframe with original and matched values of biomass by species and age
+#' class for \code{new_data} (\code{comp_frame})
+#' @importFrom rlang .data
 #' @export
 #'
 #' @examples
+#' backcasted <- backcast_landis_to_treelists(
+#'   new_data = process_landis(data.table::fread(test_landis_prediction_file)),
+#'   lookup = test_landis,
+#'   n_clusters = 20,
+#'   treelist_dir = test_landis_treelist_dir
+#' )
+
 backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
                                          treelist_dir) {
   # kmeans clusters based on species biomass
@@ -333,7 +409,7 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
   spp_clusters <- cluster_data(
     data = lookup,
     vars = attr(lookup, "spp_vars"),
-    n = n_clusters
+    n_clusters = n_clusters
   )
 
   # add cluster ids to lookup
@@ -351,7 +427,7 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
   rlang::inform("collecting matching tree records")
   trees <- get_trees(
     match_frame = match_frame,
-    map_code_crosswalk = map_code_crosswalk,
+    map_code_crosswalk = backcaster::map_code_crosswalk,
     treelist_dir = treelist_dir
   )
 
@@ -374,12 +450,12 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
     dplyr::bind_rows(
       .id = "source"
     ) %>%
-    pivot_longer(
+    tidyr::pivot_longer(
       -tidyselect::all_of(c("map_code", "source")),
       names_to = "attr",
       values_to = "estimate"
     ) %>%
-    pivot_wider(
+    tidyr::pivot_wider(
       names_from = "source",
       values_from = "estimate"
     )
@@ -394,7 +470,7 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
       rmse = sqrt(
         mean((.data[["matched"]] - .data[["original"]]) ^ 2)
       ),
-      rmse_pct = round(100 * rmse / mean_original),
+      rmse_pct = round(100 * .data[["rmse"]] / .data[["mean_original"]]),
       .groups = "drop"
     )
 
