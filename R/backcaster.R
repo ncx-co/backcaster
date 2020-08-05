@@ -376,6 +376,77 @@ get_trees <- function(match_frame, map_code_crosswalk, treelist_dir) {
   return(in_trees)
 }
 
+#' Summarize landis summary matching performance
+#'
+#' @param match_frame dataframe output from
+#' \code{\link{get_matching_map_codes}} with \code{map_code} values for the
+#' target pixels and for the matched records from the lookup dataset.
+#' @param new_data dataframe object that needs nearest neighbor matches, output
+#' of \code{\link{process_landis}}.
+#' @param lookup dataframe output of \code{\link{process_landis}} from which
+#' matches are drawn.
+#'
+#' @return list a containing a dataframe with matching accuracy statistics
+#' (\code{comp_stats}), and a dataframe with original and matched values of
+#' biomass by species and age class for \code{new_data} (\code{comp_frame})
+#' @export
+#'
+#' @examples
+#' summarize_matching_performance(
+#'   match_frame = test_match_frame,
+#'   new_data = process_landis(data.table::fread(test_landis_prediction_file)),
+#'   lookup = test_landis
+#' )
+
+summarize_matching_performance <- function(match_frame, new_data, lookup) {
+  match_data <- match_frame %>%
+    dplyr::left_join(lookup, by = c("matched" = "map_code")) %>%
+    dplyr::rename(
+      "map_code" = "original"
+    ) %>%
+    dplyr::select(
+      tidyselect::all_of(names(new_data))
+    )
+
+  comp_frame <-
+    list(
+      "original" = new_data,
+      "matched" = match_data
+    ) %>%
+    dplyr::bind_rows(
+      .id = "source"
+    ) %>%
+    tidyr::pivot_longer(
+      -tidyselect::all_of(c("map_code", "source")),
+      names_to = "attr",
+      values_to = "estimate"
+    ) %>%
+    tidyr::pivot_wider(
+      names_from = "source",
+      values_from = "estimate"
+    )
+
+  comp_stats <- comp_frame %>%
+    dplyr::group_by(
+      .data[["attr"]]
+    ) %>%
+    dplyr::summarize(
+      mean_original = mean(.data[["original"]]),
+      mean_matched = mean(.data[["matched"]]),
+      rmse = sqrt(
+        mean((.data[["matched"]] - .data[["original"]]) ^ 2)
+      ),
+      rmse_pct = round(100 * .data[["rmse"]] / .data[["mean_original"]]),
+      .groups = "drop"
+    )
+
+  # return list
+  list(
+    comp_frame = comp_frame,
+    comp_stats = comp_stats
+  )
+}
+
 #' Backcast Landis to treelists
 #'
 #' @param new_data dataframe object that will get backcasted treelists, output
@@ -433,50 +504,17 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
 
   # build table to compare matched attributes to original
   rlang::inform("summarizing original vs matched Landis attributes")
-  match_data <- match_frame %>%
-    dplyr::left_join(lookup, by = c("matched" = "map_code")) %>%
-    dplyr::rename(
-      "map_code" = "original"
-    ) %>%
-    dplyr::select(
-      tidyselect::all_of(names(new_data))
-    )
 
-  comp_frame <-
-    list(
-      "original" = new_data,
-      "matched" = match_data
-    ) %>%
-    dplyr::bind_rows(
-      .id = "source"
-    ) %>%
-    tidyr::pivot_longer(
-      -tidyselect::all_of(c("map_code", "source")),
-      names_to = "attr",
-      values_to = "estimate"
-    ) %>%
-    tidyr::pivot_wider(
-      names_from = "source",
-      values_from = "estimate"
-    )
+  match_diagnostics <- summarize_matching_performance(
+    match_frame = match_frame,
+    new_data = new_data,
+    lookup = lookup
+  )
 
-  comp_stats <- comp_frame %>%
-    dplyr::group_by(
-      .data[["attr"]]
-    ) %>%
-    dplyr::summarize(
-      mean_original = mean(.data[["original"]]),
-      mean_matched = mean(.data[["matched"]]),
-      rmse = sqrt(
-        mean((.data[["matched"]] - .data[["original"]]) ^ 2)
-      ),
-      rmse_pct = round(100 * .data[["rmse"]] / .data[["mean_original"]]),
-      .groups = "drop"
-    )
-
-  out <- list(
+  # export trees and accompanying matching diagnostics
+  list(
     trees = trees,
-    comp_stats = comp_stats,
-    comp_frame = comp_frame
+    comp_stats = match_diagnostics$comp_stats,
+    comp_frame = match_diagnostics$comp_frame
   )
 }
