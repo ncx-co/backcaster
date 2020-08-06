@@ -6,7 +6,7 @@
 \title{The dataframe created by \code{\link{process_landis}} after reading
 \code{\link{test_landis_training_file}}.}
 \format{
-An object of class \code{data.frame} with 2459 rows and 75 columns.
+An object of class \code{data.frame} with 2459 rows and 74 columns.
 }
 \usage{
 test_landis

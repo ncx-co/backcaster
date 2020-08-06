@@ -79,6 +79,8 @@ library(backcaster)
 library(dplyr)
 library(ggplot2)
 library(tibble)
+
+theme_set(theme_bw())
 ```
 
 There are 543 Landis summary files in the full dataset. The process could be run with a subset of these files but we expect performance to be best when the entire dataset is used.
@@ -110,7 +112,10 @@ training_landis_files <- setdiff(
 
 All of the Landis summary files that will be used to construct the lookup table can be read in using `data.table::fread`. Alternative methods of importing the files that result in a single large `data.frame`-like object will also work.
 ```{r import_landis_training}
-landis_raw <- do.call(rbind, lapply(training_landis_files, data.table::fread))
+landis_raw <- do.call(
+  rbind,
+  lapply(training_landis_files, data.table::fread)
+)
 ```
 
 ```{r raw_landis_look, echo = FALSE, class.output = "scroll-200"}
@@ -152,6 +157,29 @@ The output of that function contains the treelist (`backcasted$trees`) and some 
 ```{r trees, echo = FALSE, class.output = "scroll-200"}
 glimpse(backcasted$trees)
 ```
+
+#### Canopy Cover
+There is a function called `estimate_canopy_cover` that will pull canopy cover values from local FIA data based on density of overstory trees. When a treelist dataframe is passed to this function it will return a dataframe with canopy cover expressed as a proportion (0 - 1) for each pixel. These values can readily converted to a percent by multiplying the value by 100.
+
+```{r canopy_cover}
+cc <- estimate_canopy_cover(backcasted$trees)
+```
+
+```{r canopy_cover_look, echo = FALSE, class.output = "scroll-200"}
+glimpse(cc)
+```
+
+```{r canopy_cover_plot, echo = FALSE}
+cc %>%
+  ggplot(aes(x = bapa, y = cc)) +
+  geom_point() +
+  labs(
+    title = "canopy cover proportion",
+    x = "basal area (sq. ft/ac)",
+    y = "canopy cover"
+  )
+```
+
 
 ### Diagnostics
 The `backcasted` object also contains two tables that are useful for generating diagnostics for the accuracy of the matching process. Generally speaking, the pixel matching process will do a better job matching the values of the species and age classes with the largest share of biomass for each pixel.

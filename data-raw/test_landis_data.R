@@ -38,6 +38,13 @@ map_code_crosswalk <- readr::read_csv(
   "https://silviaterra-delivery.s3.amazonaws.com/TCSI/mapcode_crosswalk_20200803.csv"
 )
 
+test_backcasted <- backcast_landis_to_treelists(
+  new_data = process_landis(data.table::fread(test_landis_prediction_file)),
+  lookup = test_landis,
+  n_clusters = 20,
+  treelist_dir = test_landis_treelist_dir
+)
+
 # add to package data
 usethis::use_data(
   test_landis_training_file,
@@ -47,5 +54,6 @@ usethis::use_data(
   test_clusters,
   test_match_frame,
   map_code_crosswalk,
+  test_backcasted,
   overwrite = TRUE
 )
