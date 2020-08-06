@@ -192,8 +192,6 @@ plot_stats <- trees %>%
   left_join(fia_cond) %>%
   mutate(for_type = factor(fortypcdcalc))
 
-glimpse(crown_stats)
-
 training_data <- crown_stats %>%
   transmute(
     plt_cn = PLT_CN,
