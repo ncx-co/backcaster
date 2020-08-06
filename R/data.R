@@ -30,6 +30,11 @@
 #'
 "test_match_frame"
 
+#' The output of \code{\link{backcast_landis_to_treelists}} when applied to
+#' the test data inputs.
+#'
+"test_backcasted"
+
 #' A dataframe that relates \code{map_code} values to 90 meter pixel
 #' coordinates in EPSG:2163 projection.
 #'
