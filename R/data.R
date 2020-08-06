@@ -34,3 +34,8 @@
 #' coordinates in EPSG:2163 projection.
 #'
 "map_code_crosswalk"
+
+#' A dataframe with estimates of canopy cover proportion with bapa and tpa
+#' observations from FIA data in the Sierra Nevada region
+#'
+"canopy_cover_table"
