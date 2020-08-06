@@ -159,7 +159,7 @@ glimpse(backcasted$trees)
 ```
 
 #### Canopy Cover
-There is a function called `estimate_canopy_cover` that will pull canopy cover values from local FIA data based on density of overstory trees. When a treelist dataframe is passed to this function it will return a dataframe with canopy cover expressed as a proportion (0 - 1) for each pixel.
+There is a function called `estimate_canopy_cover` that will pull canopy cover values from local FIA data based on density of overstory trees. When a treelist dataframe is passed to this function it will return a dataframe with canopy cover expressed as a proportion (0 - 1) for each pixel. These values can readily converted to a percent by multiplying the value by 100.
 
 ```{r canopy_cover}
 cc <- estimate_canopy_cover(backcasted$trees)
