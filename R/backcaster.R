@@ -25,7 +25,7 @@ process_landis <- function(data) {
         .data[["aboveground_biomass_g_per_m2"]]
       )
     ) %>%
-    data.table::as.data.table()
+    tibble::as.tibble()
 
   # biomass by species
   biomass_x_spp <- data %>%
@@ -38,7 +38,7 @@ process_landis <- function(data) {
         .data[["aboveground_biomass_g_per_m2"]]
       )
     ) %>%
-    data.table::as.data.table()
+    tibble::as.tibble()
 
   biomass_x_spp_wide <- biomass_x_spp %>%
     tidyr::pivot_wider(
@@ -64,7 +64,7 @@ process_landis <- function(data) {
         .data[["aboveground_biomass_g_per_m2"]]
       )
     ) %>%
-    data.table::as.data.table()
+    tibble::as.tibble()
 
   biomass_x_age_wide <- biomass_x_age %>%
     tidyr::pivot_wider(
