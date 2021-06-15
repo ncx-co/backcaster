@@ -480,7 +480,7 @@ summarize_matching_performance <- function(match_frame, new_data, lookup) {
 #' )
 
 backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
-                                         treelist_dir, diagnostics = F) {
+                                         treelist_dir, diagnostics = FALSE) {
   # kmeans clusters based on species biomass
   rlang::inform("clustering lookup table on biomass x species")
   spp_clusters <- cluster_data(
@@ -511,7 +511,7 @@ backcast_landis_to_treelists <- function(new_data, lookup, n_clusters = 50,
   # build table to compare matched attributes to original
   rlang::inform("summarizing original vs matched Landis attributes")
 
-  if(diagnostics = T) {
+  if(diagnostics == T) {
   match_diagnostics <- summarize_matching_performance(
     match_frame = match_frame,
     new_data = new_data,
