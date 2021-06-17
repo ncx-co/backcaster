@@ -365,11 +365,11 @@ get_trees <- function(match_frame, map_code_crosswalk, treelist_dir) {
     data.table::as.data.table() %>%
     tibble::as_tibble() %>%
     dplyr::left_join(file_frame, by = "pix_ctr_wkt") %>%
-    dplyr::mutate(
-      pix_ctr_wkt = map_code_crosswalk$pix_ctr_wkt[
-        match(.data[["original"]], map_code_crosswalk$map_code)
-      ]
-    ) %>%
+#    dplyr::mutate(
+#      pix_ctr_wkt = map_code_crosswalk$pix_ctr_wkt[
+#        match(.data[["original"]], map_code_crosswalk$map_code)
+#      ]
+#    ) %>%
     dplyr::select(
       .data[["pix_ctr_wkt"]],
       map_code = .data[["original"]],
